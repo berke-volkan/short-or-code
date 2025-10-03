@@ -3,37 +3,51 @@ from slack_bolt import App
 from slack_bolt.adapter.socket_mode import SocketModeHandler
 import requests
 import json
+import datetime
 # Install the Slack app and get xoxb- token in advance
-app = App(token="xoxb-2210535565-9627716046115-UCjrnzAOgDyzRJQX9Gw1cOM8")
+app = App(token="token")
 
 @app.message("hello")
 def hello(message,say):
     resp=requests.get("https://hackatime.hackclub.com/api/v1/users/kzlpndx/stats")
     resp=resp.json()
     user=message["user"]
-    say(f"Hey <@{user}>! Please write /join if you want to join to code or short :)")
-data = {}
-@app.message("-join")
-def join(message,say):
-   
-   with open("users.json", "r", encoding="utf-8") as f:
+    say(f"Hey <@{user}>! Please write -join if you want to join to code or short :)")
+
+
+def write_2_json(data,f):
+   with open(f, "w", encoding="utf-8") as f:
         try:
-           data.append(json.load(f))
-           print(data)
-        except json.JSONDecodeError:
-            data = []
-   data.append({"name":message["user"]})
-   print(data)
-   with open("users.json", "w", encoding="utf-8") as f:
-        try:
-           json.dump(f,data)
+           json.dump(data,f)
         except json.JSONDecodeError:
             data = {}
+
+@app.message("-join")
+def join(message,say):
+
+   with open("users.json", "r", encoding="utf-8") as f:
+        try:
+           data = json.load(f)
+           timestamp= datetime.datetime.now().timestamp()
+           print(timestamp)
+           say("ı registered you")
+           data["users"].append({"slack_id":message["user"],"reg_stamp":timestamp,"holdings":[],"price":1})
+           write_2_json(data,f="users.json")
+
+        except json.JSONDecodeError:
+            data = []
+   with open("tokens.json","r") as f:
+       data = json.load(f)
+       data["tokens"].append({"token":message["user"],"holders":[],"24h":0})
+       write_2_json(data,f="tokens.json")
+
+@app.message("-explore")
+def explore(message,say):
+    pass
 
      
 
 
 if __name__ == "__main__":
-
-    handler = SocketModeHandler(app, "xapp-1-A09JCBFBJKG-9627690213283-53cd4ebfe8d390f3b74304d0e0f2b8516f3c937dd4c66cbd1a093c4361a49498")
+    handler = SocketModeHandler(app, "token")
     handler.start()
