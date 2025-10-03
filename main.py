@@ -5,12 +5,11 @@ import requests
 import json
 import datetime
 # Install the Slack app and get xoxb- token in advance
-app = App(token="token")
+
+app = App(token=OBB)
 
 @app.message("hello")
 def hello(message,say):
-    resp=requests.get("https://hackatime.hackclub.com/api/v1/users/kzlpndx/stats")
-    resp=resp.json()
     user=message["user"]
     say(f"Hey <@{user}>! Please write -join if you want to join to code or short :)")
 
@@ -38,16 +37,35 @@ def join(message,say):
             data = []
    with open("tokens.json","r") as f:
        data = json.load(f)
-       data["tokens"].append({"token":message["user"],"holders":[],"24h":0})
+       data["tokens"].append({"token":message["user"],"holders":[],"24h":0,"price":1})
        write_2_json(data,f="tokens.json")
 
-@app.message("-explore")
+@app.message("-token")
 def explore(message,say):
-    pass
+    say("buying token")
+    with open("tokens.json","r") as f:
+       data = json.load(f)
+       entry=data["tokens"][0]["price"]
+       data["tokens"][0]["holders"].append({"U07SU9F50MT":{"bal":100,"entry":entry}})
+       write_2_json(data,f="tokens.json")
+
+
+
+@app.message("-recalc")
+def explore(message,say):
+    say("recalcing token price")
+    resp=requests.get("https://hackatime.hackclub.com/api/v1/users/kzlpndx/stats?start_date=2025-09-03&end_date=2025-10-03")
+    resp=resp.json()
+    multiplier=resp["data"]["total_seconds"]/10800 #this equals to 3h.Maybe ı can change later but id
+    with open("tokens.json","r") as f:
+       data = json.load(f)
+       entry=data["tokens"][0]["holders"][0]["entry"]
+       data["tokens"][0]["holders"][0]={"U07SU9F50MT":{"bal":100,"entry":entry*multiplier}}
 
      
 
 
 if __name__ == "__main__":
-    handler = SocketModeHandler(app, "token")
+
+    handler = SocketModeHandler(app, APP)
     handler.start()
