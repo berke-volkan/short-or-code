@@ -59,13 +59,17 @@ def explore(message,say):
     multiplier=resp["data"]["total_seconds"]/10800 #this equals to 3h.Maybe ı can change later but id
     with open("tokens.json","r") as f:
        data = json.load(f)
-       entry=data["tokens"][0]["holders"][0]["entry"]
-       data["tokens"][0]["holders"][0]={"U07SU9F50MT":{"bal":100,"entry":entry*multiplier}}
+       entry=data["tokens"][0]["holders"][0]["U07SU9F50MT"]["entry"]
+       data["tokens"][0]["price"]=multiplier*data["tokens"][0]["price"]
+       write_2_json(data,f="tokens.json")
+       price=data["tokens"][0]["price"]
+       pos=data["tokens"][0]["holders"][0]["U07SU9F50MT"]["bal"]
+       change=(price-entry)*pos
+       say(f"UPDATE: New token Price: {price} \n Change On your Balance {change}")
 
      
 
 
 if __name__ == "__main__":
-
     handler = SocketModeHandler(app, APP)
     handler.start()
