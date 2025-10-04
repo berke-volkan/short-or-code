@@ -14,6 +14,31 @@ app = App(token=OBB)
 def hello(message,say):
     user=message["user"]
     say(f"Hey <@{user}>! Please write -join if you want to join to code or short :)")
+@app.command("/buy")
+def buy(ack, respond, command):
+    ack()
+    user_input = command.get('text', '')
+    args = user_input.split()
+    with open("users.json","r") as f:
+        data=json.load(f)
+        for x in data["users"]:
+            if (x["slack_id"]==command["user_id"]):
+                budget=x["budget"]
+    if (int(args[1])<=budget):
+        with open("tokens.json","r") as f:
+            data = json.load(f)
+            for i in data["tokens"]:
+             if(i["token"]==args[0]):
+               entry=i["price"]
+               amount=int(args[1])/entry
+               i["holders"].append({"U07SU9F50MT":{"bal":amount,"entry":entry}})
+               write_2_json(data,f="tokens.json")
+               respond(f"Bought: {args[0]} \n Amount: {amount} \n From:H${entry} per stock")
+               #well well ı need to write this data to users.json too :heavysob:
+    else:
+        respond("⚠️ Fraud Detected \n Just kidding.Did you think that ı would approve a transaction over your budget?")
+        
+
 
 
 def write_2_json(data,f):
@@ -32,7 +57,7 @@ def join(message,say):
            timestamp= datetime.datetime.now().timestamp()
            print(timestamp)
            say("ı registered you")
-           data["users"].append({"slack_id":message["user"],"reg_stamp":timestamp,"holdings":[],"price":1})
+           data["users"].append({"slack_id":message["user"],"reg_stamp":timestamp,"holdings":[],"budget":100,"marketcap":100})
            write_2_json(data,f="users.json")
 
         except json.JSONDecodeError:
@@ -43,15 +68,12 @@ def join(message,say):
        write_2_json(data,f="tokens.json")
 
 @app.message("-token")
-def explore(message,say):
-    say(message[0])
+def token(message,say):
     with open("tokens.json","r") as f:
        data = json.load(f)
        entry=data["tokens"][0]["price"]
        data["tokens"][0]["holders"].append({"U07SU9F50MT":{"bal":100,"entry":entry}})
        write_2_json(data,f="tokens.json")
-
-
 
 @app.message("-recalc")
 def recalc(message,say):
@@ -82,6 +104,19 @@ def explore(message,say):
     price=best_roi["price"]
     say(f"Best token in 24h is: {name} \n24H Change: {change} \nTrade Price: {price} \n\n Created by: /- I need to add a created_by thingy after changing from message event to command -/")
 
+@app.command("/market-cap")
+def cap(ack,respond,command):
+    ack()
+    with open("tokens.json","r") as f:
+            data = json.load(f)  
+            cap=0
+            for i in data["tokens"]:
+                if i["created_by"]==command["user_id"]:
+                    for x in i["holders"]:
+                        for user in x:
+                            cap+=x[user]['bal']
+    respond(f"Hey you yes you.You worth H${cap} 💎")
+
 @app.event("app_home_opened")
 def update_home_tab(client, event, logger):
     with open("users.json","r") as f:
@@ -95,7 +130,9 @@ def update_home_tab(client, event, logger):
         name=x["token"]
         bal=x["bal"]
         price=x["price"]
-        a=f"{name}    | {bal}      | H${price} \n"    
+        entry=x["entry"]
+        profit=(price-entry)*bal
+        a=f"{name}    | {bal}      | H${price}        | H${price*bal}       | H${profit} (%{round(price-entry,2)*100}) \n"    
         markdown+=a           
     try:
         # Call views.publish with the built-in client
@@ -121,7 +158,7 @@ def update_home_tab(client, event, logger):
 			"text": {
 				"type": "mrkdwn",
 				"text":                    "```"
-                    "Coin   | Amount   | Value (H$)\n"
+                    "Coin   | Amount   | Price (H$) | Value (H$)  | Profit (H$)\n"
                     f"{markdown}"
                     "```"
 			}
@@ -134,3 +171,5 @@ def update_home_tab(client, event, logger):
 if __name__ == "__main__":
     handler = SocketModeHandler(app, APP)
     handler.start()
+
+

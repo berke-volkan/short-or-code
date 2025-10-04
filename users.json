@@ -1,1 +1,1 @@
-{"users": [{"slack_id": "U07SU9F50MT", "reg_stamp": 1759574811.081536, "holdings": [{"token":"ali","entry":1,"price":2,"bal":100}], "price": 1},{"slack_id": "AAAAA", "reg_stamp": 1759574811.081536, "holdings": [], "price": 1}]}
+{"users": [{"slack_id": "U07SU9F50MT", "reg_stamp": 1759574811.081536, "holdings": [{"token":"ali","entry":1,"price":2,"bal":100}], "marketcap": 100,"budget":100},{"slack_id": "AAAAA", "reg_stamp": 1759574811.081536, "holdings": [], "marketcap": 1,"budget":20}]}
