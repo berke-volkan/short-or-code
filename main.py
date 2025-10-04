@@ -7,13 +7,12 @@ import datetime
 import math
 # Install the Slack app and get xoxb- token in advance
 
-
 app = App(token=OBB)
 
 @app.message("hello")
 def hello(message,say):
     user=message["user"]
-    say(f"Hey <@{user}>! Please write -join if you want to join to code or short :)")
+    say(f"Hey <@{user}>! Please write /join-code if you want to join to code or short :)")
 @app.command("/buy")
 def buy(ack, respond, command):
     ack()
@@ -48,49 +47,58 @@ def write_2_json(data,f):
         except json.JSONDecodeError:
             data = {}
 
-@app.message("-join")
-def join(message,say):
-
+@app.command("/join-code")
+def join(command,ack,respond):
+   ack()
    with open("users.json", "r", encoding="utf-8") as f:
         try:
            data = json.load(f)
            timestamp= datetime.datetime.now().timestamp()
            print(timestamp)
-           say("ı registered you")
-           data["users"].append({"slack_id":message["user"],"reg_stamp":timestamp,"holdings":[],"budget":100,"marketcap":100})
+           respond("Hey! I registered u & created your token")
+           data["users"].append({"slack_id":command["user_id"],"reg_stamp":timestamp,"holdings":[],"budget":100,"marketcap":100})
            write_2_json(data,f="users.json")
 
         except json.JSONDecodeError:
             data = []
    with open("tokens.json","r") as f:
        data = json.load(f)
-       data["tokens"].append({"token":message["user"],"holders":[],"24h":0,"price":1})
+       data["tokens"].append({"token":command["user_id"],"holders":[],"24h":0,"price":1})
        write_2_json(data,f="tokens.json")
 
-@app.message("-token")
-def token(message,say):
+@app.command("/deprecated-buy")
+def token(command,ack,respond):
+    ack()
     with open("tokens.json","r") as f:
        data = json.load(f)
        entry=data["tokens"][0]["price"]
        data["tokens"][0]["holders"].append({"U07SU9F50MT":{"bal":100,"entry":entry}})
        write_2_json(data,f="tokens.json")
 
-@app.message("-recalc")
-def recalc(message,say):
-    say("recalcing token price")
-    resp=requests.get("https://hackatime.hackclub.com/api/v1/users/kzlpndx/stats?start_date=2025-09-03&end_date=2025-10-03")
+@app.command("/recalc")
+def recalc(command,ack,respond):
+    ack()
+    respond("Hey ya! I am recalculating value of this token :)")
+    user_input = command.get('text', '')
+    args = user_input.split()
+    userid=""
+    if (args[0]!=[]):
+        userid=args[0]
+    else:
+        userid=command["user_id"]
+    resp=requests.get(f"https://hackatime.hackclub.com/api/v1/users/{userid}/stats?start_date=2025-09-03&end_date=2025-10-03")
     resp=resp.json()
     multiplier=resp["data"]["total_seconds"]/10800 #this equals to 3h.Maybe ı can change later but id
     with open("tokens.json","r") as f:
        data = json.load(f)
-       entry=data["tokens"][0]["holders"][0]["U07SU9F50MT"]["entry"]
-       data["tokens"][0]["price"]=multiplier*data["tokens"][0]["price"]
-       write_2_json(data,f="tokens.json")
-       price=data["tokens"][0]["price"]
-       pos=data["tokens"][0]["holders"][0]["U07SU9F50MT"]["bal"]
-       change=(price-entry)*pos
-       change_percent=round((multiplier-1),2)*100
-       say(f"UPDATE: New token Price: {price} \n Change On your Balance {change} \n Change(%): %{change_percent}")
+       for x in data["tokens"]:
+           if (x["created_by"]==userid):
+               x["price"]=x["price"]*multiplier
+               write_2_json(data,f="tokens.json")
+               price=x["price"]
+               change=(round(multiplier-1,2))*100
+               respond(f"Hey! New price of stock: {round(price,2)}  \n Change(%): %{change}")
+
 @app.message("explore") 
 def explore(message,say):
     best_roi={"24h":0}
@@ -107,11 +115,18 @@ def explore(message,say):
 @app.command("/market-cap")
 def cap(ack,respond,command):
     ack()
+    user_input = command.get('text', '')
+    args = user_input.split()
     with open("tokens.json","r") as f:
             data = json.load(f)  
             cap=0
             for i in data["tokens"]:
-                if i["created_by"]==command["user_id"]:
+                uid=""
+                if args[0]==[]:
+                    uid=command["user_id"]
+                else:
+                    uid=args[0]
+                if i["created_by"]==uid:
                     for x in i["holders"]:
                         for user in x:
                             cap+=x[user]['bal']
