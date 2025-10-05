@@ -5,7 +5,18 @@ import requests
 import json
 import datetime
 import math
+import firebase_admin
+from firebase_admin import db
+from datetime import datetime,timedelta
 # Install the Slack app and get xoxb- token in advance
+
+cred_obj = firebase_admin.credentials.Certificate('firebase.json')
+default_app = firebase_admin.initialize_app(cred_obj, {
+    'databaseURL':"https://volkan-f6d36-default-rtdb.firebaseio.com"
+    })
+
+ref = db.reference("/tokens")
+
 
 app = App(token=OBB)
 
@@ -18,6 +29,7 @@ def buy(ack, respond, command):
     ack()
     user_input = command.get('text', '')
     args = user_input.split()
+
     with open("users.json","r") as f:
         data=json.load(f)
         for x in data["users"]:
@@ -36,8 +48,9 @@ def buy(ack, respond, command):
                #well well ı need to write this data to users.json too :heavysob:
     else:
         respond("⚠️ Fraud Detected \n Just kidding.Did you think that ı would approve a transaction over your budget?")
-        
-
+@app.event("app_uninstalled")
+def uninstalled(client, event, logger):
+    requests.post("https://ntfy.sh/slack-gambling-status",data="Someone uninstalled me from Hack Club Slack 😭 Plz add me back".encode(encoding='utf-8'))
 
 
 def write_2_json(data,f):
@@ -53,9 +66,12 @@ def join(command,ack,respond):
    with open("users.json", "r", encoding="utf-8") as f:
         try:
            data = json.load(f)
-           timestamp= datetime.datetime.now().timestamp()
+           timestamp= datetime.now().timestamp()
            print(timestamp)
            respond("Hey! I registered u & created your token")
+           username=command["user_name"]
+           uid=command["user_id"]
+           requests.post("https://ntfy.sh/gambling-user-log",data=f"Hey ya! It looks like someone joined to Code Or Short \nUser:{username}({uid}) \nTimestamp: {timestamp}".encode(encoding='utf-8'))
            data["users"].append({"slack_id":command["user_id"],"reg_stamp":timestamp,"holdings":[],"budget":100,"marketcap":100})
            write_2_json(data,f="users.json")
 
@@ -78,7 +94,7 @@ def token(command,ack,respond):
 @app.command("/recalc")
 def recalc(command,ack,respond):
     ack()
-    respond("Hey ya! I am recalculating value of this token :)")
+    respond("[THIS COMMAND IS ONLY FOR TESTING PURPOSES.PLEASE DONT ABUSE]\nHey ya! I am recalculating value of this token :)")
     user_input = command.get('text', '')
     args = user_input.split()
     userid=""
@@ -117,11 +133,12 @@ def cap(ack,respond,command):
     ack()
     user_input = command.get('text', '')
     args = user_input.split()
+    uid=""
     with open("tokens.json","r") as f:
             data = json.load(f)  
             cap=0
             for i in data["tokens"]:
-                uid=""
+                
                 if args[0]==[]:
                     uid=command["user_id"]
                 else:
@@ -130,7 +147,106 @@ def cap(ack,respond,command):
                     for x in i["holders"]:
                         for user in x:
                             cap+=x[user]['bal']
-    respond(f"Hey you yes you.You worth H${cap} 💎")
+    if uid==command["user_id"]:
+        respond(f"Hey you yes you.You worth H${cap} 💎")
+    else:
+        ping=f"<@{uid}>"
+        respond(f"Stalking others? Oh cool! Creator of this coins is:{ping} & Market Cap is: H${cap} 💎")
+
+def get_total_stars(username):
+   url = f"https://api.github.com/users/{username}/repos"
+   total_stars = 0
+   page = 1
+   while True:
+       response = requests.get(url, params={"page": page, "per_page": 100})
+       if response.status_code != 200:
+           print(f"Error: {response.status_code}")
+           break
+       repos = response.json()
+       if not repos:
+           break
+       total_stars += sum(repo['stargazers_count'] for repo in repos)
+       page += 1
+   return total_stars
+
+@app.command("/connect")
+def github(ack,respond,command):
+    ack()
+    user_input = command.get('text', '')
+    args = user_input.split()
+    with open("users.json","r") as f:
+            data = json.load(f)
+            for x in data["users"]:
+                if(x["slack_id"]==command["user_id"]):
+                    if (x["github"]=="undefined"):
+                        if (args[0]==[]):
+                            respond("Please provide a gh username")
+                        else:
+                            x["github"]=args[0]
+                            write_2_json(data,"users.json")
+                            respond(f"I set your gh account to: {args[0]}")
+                            name=x["slack_id"]
+                            gh=x["github"]
+                            requests.post("https://ntfy.sh/gambling-connection",data=f"{name} just connected their github account yaay! \n Github Account: {gh}".encode(encoding='utf-8'))
+                    else:
+                        respond("You already connected github")
+@app.command("/connect-scrapbook")
+def github(ack,respond,command):
+    ack()
+    user_input = command.get('text', '')
+    args = user_input.split()
+    with open("users.json","r") as f:
+            data = json.load(f)
+            for x in data["users"]:
+                if(x["slack_id"]==command["user_id"]):
+                    if (x["scrapbook"]=="undefined"):
+                        if (args[0]==[]):
+                            respond("Please provide a gh username")
+                        else:
+                            x["scrapbook"]=args[0]
+                            write_2_json(data,"users.json")
+                            respond(f"I set your scrapbook account to: {args[0]}")
+                            name=x["slack_id"]
+                            sc=x["scrapbook"]
+                            requests.post("https://ntfy.sh/gambling-connection",data=f"{name} just connected their scrapbook account yaay! \n Scrapbook Account: {sc}".encode(encoding='utf-8'))
+                    else:
+                        respond("You already connected scrapbook")
+
+@app.command("/hacker-score")
+def scoring(ack,respond,command):
+    ack()
+    with open("users.json","r") as f:
+        data = json.load(f)
+        for x in data["users"]:
+            if(x["slack_id"]==command["user_id"]):
+                if(x["github"]=="undefined"):
+                    respond("Plase setup your gh name using /connect command")
+                else:
+                    stars=get_total_stars(x["github"])
+                    u=command["user_id"]
+                    hour=requests.get(f"https://hackatime.hackclub.com/api/v1/users/{u}/stats")
+                    hour=hour.json()["data"]["human_readable_total"]
+                    now=datetime.utcnow()
+                    seven_days_ago = now - timedelta(days=7)
+                    start_date = seven_days_ago.strftime("%Y-%m-%d")
+                    end_date = now.strftime("%Y-%m-%d")
+                    sevenday=requests.get(f"https://hackatime.hackclub.com/api/v1/users/{u}/stats?start_date={start_date}&end_date={end_date}")
+                    seven_hour=sevenday.json()["data"]["human_readable_daily_average"]
+                    thirty_days_ago = now - timedelta(days=30)
+                    start_date = thirty_days_ago.strftime("%Y-%m-%d")
+                    end_date = now.strftime("%Y-%m-%d")
+                    thirtyday=requests.get(f"https://hackatime.hackclub.com/api/v1/users/{u}/stats?start_date={start_date}&end_date={end_date}")
+                    thirtyday=thirtyday.json()["data"]["human_readable_daily_average"]
+                    print(sevenday.json())
+                    if x["scrapbook"]=="undefined":
+                        respond("Hey! Please connect your scrapbook using /connect-scrapbook")
+                    else:
+                        scrap=x["scrapbook"]
+                        scrapbook=requests.get(f"https://scrapbook.hackclub.com/api/users/{scrap}").json()["profile"]
+                        streak=scrapbook["streakCount"]
+                        maxStreak=scrapbook["maxStreaks"]
+                        respond(f"Here is your Hacker Score \nGH Stars: {stars} \n-------------------Hackatime-------------------\nScrapbbok Streak: {streak} (Max: {maxStreak}) \nTotal hours logged: {hour}\n 7D Daily: {seven_hour}  \n 1 Month Daily: {thirtyday}")
+
 
 @app.event("app_home_opened")
 def update_home_tab(client, event, logger):
