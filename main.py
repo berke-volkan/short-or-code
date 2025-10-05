@@ -24,30 +24,50 @@ app = App(token=OBB)
 def hello(message,say):
     user=message["user"]
     say(f"Hey <@{user}>! Please write /join-code if you want to join to code or short :)")
+
+budget=0
 @app.command("/buy")
 def buy(ack, respond, command):
     ack()
     user_input = command.get('text', '')
     args = user_input.split()
-
-    with open("users.json","r") as f:
-        data=json.load(f)
-        for x in data["users"]:
-            if (x["slack_id"]==command["user_id"]):
-                budget=x["budget"]
+    ref = db.reference("users")
+    data=ref.get()
+    for x in range(data["totalCount"]):
+       if (data[f"{x}"]["slack_id"]==command["user_id"]):
+           budget=data[f"{x}"]["budget"]
     if (int(args[1])<=budget):
-        with open("tokens.json","r") as f:
-            data = json.load(f)
-            for i in data["tokens"]:
-             if(i["token"]==args[0]):
-               entry=i["price"]
-               amount=int(args[1])/entry
-               i["holders"].append({"U07SU9F50MT":{"bal":amount,"entry":entry}})
-               write_2_json(data,f="tokens.json")
-               respond(f"Bought: {args[0]} \n Amount: {amount} \n From:H${entry} per stock")
-               #well well ı need to write this data to users.json too :heavysob:
+        ref=db.reference("tokens/tokens")
+        data=ref.get()
+        uid=command["user_id"]
+        for x in data:
+            if (data[f"{x}"]["token"]==args[0]):
+                amount=int(args[1])/data[x]["price"]
+                entry=data[x]["price"]
+                ref=db.reference(f"tokens/tokens/{x}/holders")
+                ref.push({
+                    uid:{
+                        "bal":int(amount),
+                        "entry":int(entry),
+                    }
+                })
+                tokenname=data[x]["token"]
+                price=data[x]["price"]
+                ref=db.reference("users")
+                data=ref.get()
+                for x in data:
+                    if (data[x]["slack_id"]==command["user_id"]):
+                        ref.child(x).update({"budget":data[x]["budget"]-int(args[1])})
+                        respond(f"Bought {tokenname} for {entry} Each. Total of {amount} coins bought")
+                        ref=db.reference(f"users/{x}/holdings")
+                        ref.push({
+                            "token": tokenname, "entry": price, "price": price, "bal": amount
+                        })
     else:
         respond("⚠️ Fraud Detected \n Just kidding.Did you think that ı would approve a transaction over your budget?")
+
+
+
 @app.event("app_uninstalled")
 def uninstalled(client, event, logger):
     requests.post("https://ntfy.sh/slack-gambling-status",data="Someone uninstalled me from Hack Club Slack 😭 Plz add me back".encode(encoding='utf-8'))
@@ -60,36 +80,40 @@ def write_2_json(data,f):
         except json.JSONDecodeError:
             data = {}
 
-@app.command("/join-code")
+@app.command("/join-code") #firebase
 def join(command,ack,respond):
    ack()
-   with open("users.json", "r", encoding="utf-8") as f:
-        try:
-           data = json.load(f)
-           timestamp= datetime.now().timestamp()
-           print(timestamp)
-           respond("Hey! I registered u & created your token")
-           username=command["user_name"]
-           uid=command["user_id"]
-           requests.post("https://ntfy.sh/gambling-user-log",data=f"Hey ya! It looks like someone joined to Code Or Short \nUser:{username}({uid}) \nTimestamp: {timestamp}".encode(encoding='utf-8'))
-           data["users"].append({"slack_id":command["user_id"],"reg_stamp":timestamp,"holdings":[],"budget":100,"marketcap":100})
-           write_2_json(data,f="users.json")
+   timestamp= datetime.now().timestamp()
+   print(timestamp)
+   respond("Hey! I registered u & created your token")
+   username=command["user_name"]
+   uid=command["user_id"]
+   requests.post("https://ntfy.sh/gambling-user-log",data=f"Hey ya! It looks like someone joined to Code Or Short \nUser:{username}({uid}) \nTimestamp: {timestamp}".encode(encoding='utf-8'))
+   ref = db.reference("users")
+   newuser = ref.push().set({
+       "slack_id": command["user_id"],
+        "github": "undefined",
+        "budget": 100,
+        "holdings":[""],
+        "scrapbook":"undefined",
+        "marketcap":100,
+        "reg_stamp":timestamp})
+   ref=db.reference("tokens/tokens")
+   newtoken=ref.push().set({
+       "24h":0,
+       "created_by":f"{uid}",
+       "holders": [""],
+       "price":1,
+       "token":f"{uid}"})
 
-        except json.JSONDecodeError:
-            data = []
-   with open("tokens.json","r") as f:
-       data = json.load(f)
-       data["tokens"].append({"token":command["user_id"],"holders":[],"24h":0,"price":1})
-       write_2_json(data,f="tokens.json")
-
-@app.command("/deprecated-buy")
-def token(command,ack,respond):
-    ack()
-    with open("tokens.json","r") as f:
-       data = json.load(f)
-       entry=data["tokens"][0]["price"]
-       data["tokens"][0]["holders"].append({"U07SU9F50MT":{"bal":100,"entry":entry}})
-       write_2_json(data,f="tokens.json")
+#@app.command("/deprecated-buy")
+#def token(command,ack,respond):
+#    ack()
+#   with open("tokens.json","r") as f:
+#      data = json.load(f)
+#       entry=data["tokens"][0]["price"]
+#      data["tokens"][0]["holders"].append({"U07SU9F50MT":{"bal":100,"entry":entry}})
+#       write_2_json(data,f="tokens.json")
 
 @app.command("/recalc")
 def recalc(command,ack,respond):
@@ -105,6 +129,7 @@ def recalc(command,ack,respond):
     resp=requests.get(f"https://hackatime.hackclub.com/api/v1/users/{userid}/stats?start_date=2025-09-03&end_date=2025-10-03")
     resp=resp.json()
     multiplier=resp["data"]["total_seconds"]/10800 #this equals to 3h.Maybe ı can change later but id
+
     with open("tokens.json","r") as f:
        data = json.load(f)
        for x in data["tokens"]:
@@ -169,45 +194,46 @@ def get_total_stars(username):
        page += 1
    return total_stars
 
-@app.command("/connect")
+
+@app.command("/connect") #firebase
 def github(ack,respond,command):
     ack()
     user_input = command.get('text', '')
     args = user_input.split()
     with open("users.json","r") as f:
-            data = json.load(f)
-            for x in data["users"]:
-                if(x["slack_id"]==command["user_id"]):
-                    if (x["github"]=="undefined"):
+        ref = db.reference("users")
+        data=ref.get()
+        for key, value in data.items():
+                if(value["slack_id"]==command["user_id"]):
+                    if (value["github"]=="undefined"):
                         if (args[0]==[]):
                             respond("Please provide a gh username")
                         else:
-                            x["github"]=args[0]
-                            write_2_json(data,"users.json")
+                            ref.child(key).update({"github": args[0] })
                             respond(f"I set your gh account to: {args[0]}")
-                            name=x["slack_id"]
-                            gh=x["github"]
+                            name=value["slack_id"]
+                            gh=value["github"]
                             requests.post("https://ntfy.sh/gambling-connection",data=f"{name} just connected their github account yaay! \n Github Account: {gh}".encode(encoding='utf-8'))
                     else:
                         respond("You already connected github")
-@app.command("/connect-scrapbook")
+@app.command("/connect-scrapbook") #firebase
 def github(ack,respond,command):
     ack()
     user_input = command.get('text', '')
     args = user_input.split()
     with open("users.json","r") as f:
-            data = json.load(f)
-            for x in data["users"]:
-                if(x["slack_id"]==command["user_id"]):
-                    if (x["scrapbook"]=="undefined"):
+            ref = db.reference("users")
+            data=ref.get()
+            for key, value in data.items():
+                if(value["slack_id"]==command["user_id"]):
+                    if (value["scrapbook"]=="undefined"):
                         if (args[0]==[]):
                             respond("Please provide a gh username")
                         else:
-                            x["scrapbook"]=args[0]
-                            write_2_json(data,"users.json")
+                            ref.child(key).update({"scrapbook": args[0] })
                             respond(f"I set your scrapbook account to: {args[0]}")
-                            name=x["slack_id"]
-                            sc=x["scrapbook"]
+                            name=value["slack_id"]
+                            sc=value["scrapbook"]
                             requests.post("https://ntfy.sh/gambling-connection",data=f"{name} just connected their scrapbook account yaay! \n Scrapbook Account: {sc}".encode(encoding='utf-8'))
                     else:
                         respond("You already connected scrapbook")

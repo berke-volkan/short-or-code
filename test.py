@@ -19,13 +19,7 @@ def write_2_json(data,f):
             data = {}
 
 
-ref = db.reference("tokens")
+ref = db.reference("users")
 data=ref.get()
-for x in range(data["tokens"]["totalcount"]):
-    creator_id=data["tokens"][f"{x}"]["created_by"]
-    print(creator_id)
-    resp=requests.get(f"https://hackatime.hackclub.com/api/v1/users/{creator_id}/stats?start_date=2025-09-03&end_date=2025-10-03")
-    resp=resp.json()
-    multiplier=resp["data"]["total_seconds"]/10800 
-    data["tokens"][f"{x}"]["price"]=data["tokens"][f"{x}"]["price"]*multiplier
-ref.set(data)
+for key, value in data.items():
+    print(key,value)
